@@ -4,7 +4,7 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, KillSwitches}
 import akka.stream.scaladsl.{BroadcastHub, Keep, Sink, Source}
 import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
@@ -48,17 +48,47 @@ class AdhocSourceSpec extends TestKit(ActorSystem("AdhocSourceSpec")) with WordS
 
   }
 
-  "timeoutSource" should {
-
-    "not start the source if there are no consumers" in {
+  "lazily" should {
+    "not materialize even after run, when there is no demand" in {
       val materialized = new AtomicBoolean()
-      val timeout = 200.milliseconds
-      val bufferSize = 16
-      val mat = AdhocSource.timeoutSource(timeout, Source.empty.mapMaterializedValue(_ => materialized.set(true)))
-        .toMat(BroadcastHub.sink(bufferSize)){Keep.right}
-        .run()
+      Source
+        .lazily(() => Source.empty.mapMaterializedValue(_ => materialized.set(true)))
+        .runWith(TestSink.probe[Int])
       Thread.sleep(500)
       materialized.get() should be(false)
     }
+
+    "materialize after run AND when there is a demand" in {
+      val materialized = new AtomicBoolean()
+      val mat = Source
+        .lazily(() => Source.empty.mapMaterializedValue(_ => materialized.set(true)))
+        .runWith(TestSink.probe[Int])
+
+      mat.request(1)
+      Thread.sleep(500)
+      materialized.get() should be(true)
+    }
+  }
+
+  "timeoutSource" should {
+    "not start the source even after run, when there is no demand" in {
+      val materialized = new AtomicBoolean()
+      val timeout = 200.milliseconds
+      val mat = AdhocSource.timeoutSource(timeout, Source.empty.mapMaterializedValue(_ => materialized.set(true)))
+        .runWith(TestSink.probe[Int])
+      Thread.sleep(500)
+      materialized.get() should be(false)
+    }
+
+    "materialize after run AND when there is a demand" in {
+      val materialized = new AtomicBoolean()
+      val timeout = 200.milliseconds
+      val mat = AdhocSource.timeoutSource(timeout, Source.empty.mapMaterializedValue(_ => materialized.set(true)))
+        .runWith(TestSink.probe[Int])
+      mat.request(1)
+      Thread.sleep(500)
+      materialized.get() should be(true)
+    }
+
   }
 }
