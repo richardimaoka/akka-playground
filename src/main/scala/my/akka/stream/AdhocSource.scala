@@ -14,7 +14,6 @@ object AdhocSource {
       .lazily(() => source)
       .backpressureTimeout(timeout).recoverWithRetries(maxRetries, {
         case t: TimeoutException =>
-          println(s"recovered!! ${maxRetries}")
           adhocSource(timeout, maxRetries - 1, source).asInstanceOf[Graph[SourceShape[T], NotUsed]]
       })
 
