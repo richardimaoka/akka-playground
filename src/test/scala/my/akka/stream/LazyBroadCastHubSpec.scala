@@ -12,7 +12,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
 
-class LazyBroadcastHubSpec extends WordSpec with Matchers with BeforeAndAfterAll {
+class LazyBroadCastHubSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
   implicit var system: ActorSystem = _
   implicit var materializer: Materializer = _
