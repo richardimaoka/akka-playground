@@ -72,7 +72,7 @@ class PrefixAndTailSpec extends WordSpec with Matchers with BeforeAndAfterAll {
     }
 
     "work on long input with sink publisher" in  {
-      val sinkPublisher = Source(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)).prefixAndTail(3).runWith(Sink.asPublisher(false))
+      val sinkPublisher = Source(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)).map(x => {logit("in the middle" + x);x}).prefixAndTail(3).runWith(Sink.asPublisher(false))
 
       val subscriber = TestSubscriber.manualProbe[(Seq[Int], Source[Int, NotUsed])]()
       sinkPublisher.subscribe(subscriber)
