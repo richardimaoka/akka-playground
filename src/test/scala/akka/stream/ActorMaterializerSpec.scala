@@ -132,6 +132,8 @@ class ActorMaterializerSpec
       expectedMsg1.children.foreach(x => logit(x))
       // see that it flow-**6**-0-
       // Actor[akka://ActorMaterializerSpec/user/StreamSupervisor-3/flow-6-0-ignoreSink#-899343765]
+      // this is because `m.supervisor ! StreamSupervisor.GetChildren` was done right after the stream was run
+      // (i.e.) at that point, the stream was still running and the child was there
       expectedMsg1.children.size should be (1)
 
       /**
@@ -149,24 +151,27 @@ class ActorMaterializerSpec
       expectedMsg2.children.foreach(x => logit(x))
       // see that it flow-**7**-0-
       // Actor[akka://ActorMaterializerSpec/user/StreamSupervisor-3/flow-7-0-ignoreSink#-78039495]
+      // this is because `m.supervisor ! StreamSupervisor.GetChildren` was done right after the stream was run
+      // (i.e.) at that point, the stream was still running and the child was there
       expectedMsg2.children.size should be (1)
 
       /**
         * Yet another stream
         */
       val mat3 = Source.single(1).toMat(Sink.ignore)(Keep.right).run()(m)
-      m.supervisor ! StreamSupervisor.GetChildren
 
       //Stream is already completed
       logit("-----------------------------------------")
       Await.result(mat3, 1.second) should be (Done)
+      //After the stream is completed, try to get a child
+      m.supervisor ! StreamSupervisor.GetChildren
 
       //enabled with ImplicitSender
       val expectedMsg3 = expectMsgType[StreamSupervisor.Children]
       expectedMsg3.children.foreach(x => logit(x))
-      // see that it flow-**8**-0-
-      // Actor[akka://ActorMaterializerSpec/user/StreamSupervisor-3/flow-8-0-ignoreSink#-160574226]
-      expectedMsg3.children.size should be (1)
+      // Since `m.supervisor ! StreamSupervisor.GetChildren` was done after the stream was already completed,
+      // (i.e.) at that point, the stream was already terminated and no child running.
+      expectedMsg3.children.size should be (0)
 
       m.shutdown()
 
