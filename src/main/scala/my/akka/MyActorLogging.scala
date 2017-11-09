@@ -1,7 +1,8 @@
 package my.akka
 
-import akka.actor.{Actor, ActorLogging, ActorSelectionMessage, ActorSystem, Props}
-import akka.event.Logging
+import akka.actor.{Actor, ActorLogging, ActorSelectionMessage, ActorSystem, PoisonPill, Props}
+import akka.event.{LogSource, Logging}
+import com.typesafe.config.ConfigFactory
 import my.akka.wrapper.Wrap
 
 class MyActor extends Actor {
@@ -85,11 +86,56 @@ object MyActorLogging {
     // println(Logging.OffLevel)
   }
 
+  def logEvent(): Unit ={
+    println(Logging.Debug("logSource", this.getClass, "message"))
+    println(Logging.Debug("logSource", this.getClass, "message", Logging.emptyMDC))
+  }
+
+  def levelFor(): Unit = {
+    println(Logging.levelFor(""))
+
+    //This doesn't compile since MyActorLogging doesn't extend LogEvent
+    //println(Logging.levelFor(MyActorLogging.getClass))
+
+   // println(Logging.levelFor(Logging.Debug("source", this.getClass, "message" ))
+//    println(Logging.levelFor(Logging.WarningLevel))
+//    println(Logging.levelFor(Logging.ErrorLevel))
+//    println(Logging.levelFor(Logging.InfoLevel))
+  }
+
+  def config1(): Unit ={
+    val config = """
+      |akka {
+      |  log-dead-letters = 10
+      |  log-dead-letters-during-shutdown = on
+      |}
+    """.stripMargin
+
+    val system1 = ActorSystem("system1", ConfigFactory.parseString(config))
+    try{
+      val ref1 = system1.actorOf(Props[MyActor], "actor-bound-to-die")
+      ref1 ! PoisonPill
+
+      for(_ <- 1 to 100)
+        ref1 ! "Hellow world"
+      // Only 10x of the following message shown
+      // [INFO] [11/10/2017 07:15:05.642] [system1-akka.actor.default-dispatcher-5]
+      //   [akka://system1/user/actor-bound-to-die] Message [java.lang.String] without sender
+      //   to Actor[akka://system1/user/actor-bound-to-die#1238404946] was not delivered.
+      //   [1] dead letters encountered. This logging can be turned off or adjusted with configuration settings 'akka.log-dead-letters' and 'akka.log-dead-letters-during-shutdown'.
+    } finally {
+      system1.terminate()
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     try {
       Wrap("basics")(basics())
       Wrap("printName")(printName())
       Wrap("logLevel")(logLevel())
+      Wrap("logEvent")(logEvent())
+      Wrap("levelFor")(levelFor())
+      Wrap("config1")(config1())
     } finally {
       system.terminate()
     }
