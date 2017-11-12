@@ -1,10 +1,34 @@
 package my.akka
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, PoisonPill, Props}
-import akka.event.{LogSource, Logging, LoggingReceive}
+import akka.event.Logging.MDC
+import akka.event.{DiagnosticLoggingAdapter, LogSource, Logging, LoggingReceive}
 import com.typesafe.config.ConfigFactory
 import my.akka.wrapper.Wrap
 
+/**
+  * Logging // akka.event.Logging, object only
+  *   Main entry point for Akka logging: log levels and message types. Obtain an implementation of the Logging trait with
+  *   suitable and efficient methods for generating log events.
+  *   def apply() returns LoggingAdapter
+  *
+  * LoggingAdapter // akka.event.LoggingAdapter, trait
+  *   Logging wrapper, evaluate toString only if the log level is enabled. Obtaining an implementation from the Logging object.
+  *   def error   | isErrorEnabled   | notifyError
+  *   def warning | isWarningEnabled | notifyWarning
+  *   def info    | isInfoEnabled    | notifyInfo
+  *   def debug   | isDebugEnabled   | notifyDebug
+  *
+  * Logger
+  *   slf4J's Logger, used inside akka.event.slf4j
+  *
+  * Slf4Logger //akka.event.slf4j, extends Actor
+  *   to be specified in the config, and instantiated in EventStream -> LoggingBus.startDefaultLoggers()
+  *     akka {
+  *       loggers = ["akka.event.slf4j.Slf4jLogger"]
+  *       logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
+  *     }
+  */
 class MyActor extends Actor {
   val log = Logging(context.system, this)
   override def preStart() = {
@@ -21,6 +45,14 @@ class MyActor extends Actor {
 }
 
 class MyActorMixedIn extends Actor with ActorLogging {
+  /**
+    * trait ActorLogging { this: Actor ⇒
+    *   ...
+    *   // Logging main entry point is used to get LoggingAdapter
+    *   // this works as `implicit LogSource[Actor]` must be defined in akka (where? I dunno)
+    *   _log = akka.event.Logging(context.system, this)
+    * }
+    */
   override def preStart() = {
     log.debug("Starting")
   }
@@ -62,24 +94,68 @@ class MyUnhandledActor extends Actor {
   }
 }
 
+class MyDiagnosticActor extends Actor {
+  val log: DiagnosticLoggingAdapter = Logging(this)
+
+  override def preStart(): Unit = {
+    super.preStart()
+    val mdc = Map("requestId" -> 1234, "visitorId" -> 5678)
+    log.mdc(mdc)
+
+    // Log something
+    log.info("Starting new request")
+
+    log.clearMDC()
+  }
+
+  def receive = Actor.emptyBehavior
+}
+
+final case class Req(work: String, visitorId: Int)
+
+class MdcActorMixin extends Actor with akka.actor.DiagnosticActorLogging {
+  var reqId = 0
+
+  override def mdc(currentMessage: Any): MDC = {
+    reqId += 1
+    val always = Map("requestId" -> reqId)
+    val perMessage = currentMessage match {
+      case r: Req => Map("visitorId" -> r.visitorId)
+      case _ => Map()
+    }
+    always ++ perMessage
+  }
+
+  def receive: Receive = {
+    case r: Req => {
+      log.info(s"Starting new request: ${r.work}")
+    }
+  }
+}
+
 object MyActorLogging {
-  val system = ActorSystem("MyActorLogging")
 
   def basics(): Unit ={
-    val actor1 = system.actorOf(Props(new MyActor), "actor1")
-    val actor2 = system.actorOf(Props(new MyActor), "actor2")
-    actor1 ! "test"
-    //[INFO] [10/31/2017 05:32:24.279] [MyActorLogging-akka.actor.default-dispatcher-3] [akka://MyActorLogging/user/actor1] Received test
-    actor2 ! "test"
-    //[INFO] [10/31/2017 05:32:24.279] [MyActorLogging-akka.actor.default-dispatcher-4] [akka://MyActorLogging/user/actor2] Received test
+    val system = ActorSystem("MyActorLogging")
+    try{
+      val actor1 = system.actorOf(Props(new MyActor), "actor1")
+      val actor2 = system.actorOf(Props(new MyActor), "actor2")
+      actor1 ! "test"
+      //[INFO] [10/31/2017 05:32:24.279] [MyActorLogging-akka.actor.default-dispatcher-3] [akka://MyActorLogging/user/actor1] Received test
+      actor2 ! "test"
+      //[INFO] [10/31/2017 05:32:24.279] [MyActorLogging-akka.actor.default-dispatcher-4] [akka://MyActorLogging/user/actor2] Received test
 
-    val args = Array("The", "brown", "fox", "jumps", 42)
-    system.log.info("five parameters: {}, {}, {}, {}, {}", args)
-    //[INFO] [11/02/2017 06:57:17.831] [run-main-1] [akka.actor.ActorSystemImpl(MyActorLogging)] five parameters: The, brown, fox, jumps, 42
+      val args = Array("The", "brown", "fox", "jumps", 42)
+      system.log.info("five parameters: {}, {}, {}, {}, {}", args)
+      //[INFO] [11/02/2017 06:57:17.831] [run-main-1] [akka.actor.ActorSystemImpl(MyActorLogging)] five parameters: The, brown, fox, jumps, 42
 
-    system.log.debug("five parameters: {}, {}, {}, {}, {}", args)
-    //prints out nothing as the default debug level is not debug
-    println(system.log.isDebugEnabled)
+      system.log.debug("five parameters: {}, {}, {}, {}, {}", args)
+      //prints out nothing as the default debug level is not debug
+      println(system.log.isDebugEnabled)
+    } finally {
+      system.terminate()
+    }
+
   }
 
   def printName(): Unit ={
@@ -446,7 +522,7 @@ object MyActorLogging {
       system.terminate()
     }
   }
-  
+
   def logSource(): Unit ={
     object MyType {
       implicit val logSource: LogSource[MyType] = new LogSource[MyType] {
@@ -486,26 +562,81 @@ object MyActorLogging {
     }
   }
 
-  def main(args: Array[String]): Unit = {
-    try {
-//      Wrap("basics")(basics())
-//      Wrap("printName")(printName())
-//      Wrap("logLevel")(logLevel())
-//      Wrap("logEvent")(logEvent())
-//      Wrap("levelFor")(levelFor())
-//      Wrap("config1")(config1())
-//      Wrap("config2")(config2())
-//      Wrap("config3")(config3())
-//      Wrap("config3_1")(config3_1())
-//      //Wrap("config4")(config4())
-//      Wrap("config5")(config5())
-//      Wrap("config6")(config6())
-//      Wrap("config7")(config7())
-//      Wrap("config8")(config8())
-//      Wrap("config9")(config9())
-      Wrap("logSource")(logSource())
+  def slf4j(): Unit = {
+    val config =
+      """
+        |akka {
+        |  loggers = ["akka.event.slf4j.Slf4jLogger"]
+        |  loglevel = "DEBUG"
+        |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
+        |}
+      """.stripMargin
+    val system = ActorSystem("slf4jsystem", ConfigFactory.parseString(config))
+    try{
+      val log = Logging(system.eventStream, "my.nice.string")
+      log.info("hello worold")
+      log.debug("hello worold")
+      //07:10:25.896 [slf4jsystem-akka.actor.default-dispatcher-2] INFO akka.event.slf4j.Slf4jLogger - Slf4jLogger started
+      //07:10:25.901 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG akka.event.EventStream - logger log1-Slf4jLogger started
+      //07:10:25.905 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG akka.event.EventStream - Default Loggers started
+      //
+      // compared to akka default logging style, defined in StdOutLogger, which is used by
+      //   class DefaultLogger extends Actor with StdOutLogger with RequiresMessageQueue[LoggerMessageQueueSemantics]
+      //[DEBUG]  [system8-akka.actor.default-dispatcher-4] [akka://system8/user/my-actor] stopped
+
+      val actor = system.actorOf(Props(new MyActor), "actor2")
+      actor ! "test"
+      Thread.sleep(50)
     } finally {
       system.terminate()
     }
+  }
+
+  def mdc(): Unit = {
+    val config =
+      """
+        |akka {
+        |  loggers = ["akka.event.slf4j.Slf4jLogger"]
+        |  loglevel = "DEBUG"
+        |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
+        |}
+      """.stripMargin
+    val system = ActorSystem("mdcsystem", ConfigFactory.parseString(config))
+    try{
+      val actor = system.actorOf(Props(new MyDiagnosticActor), "actor2")
+      actor ! "test"
+      // if you insert %X{requestId} to logback.xml, something like below will be generated
+      //   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+      //     <encoder>
+      //       <pattern>
+      //         %-5level %logger{36} [req: %X{requestId}, visitor: %X{visitorId}] - %msg%n
+      //       </pattern>
+      //     </encoder>
+      //   </appender>
+      // 09:55:41.542 [mdcsystem-akka.actor.default-dispatcher-5] 1234 INFO  my.akka.MyDiagnosticActor - Starting new request
+      Thread.sleep(50)
+    } finally {
+      system.terminate()
+    }
+  }
+  def main(args: Array[String]): Unit = {
+    //      Wrap("basics")(basics())
+    //      Wrap("printName")(printName())
+    //      Wrap("logLevel")(logLevel())
+    //      Wrap("logEvent")(logEvent())
+    //      Wrap("levelFor")(levelFor())
+    //      Wrap("config1")(config1())
+    //      Wrap("config2")(config2())
+    //      Wrap("config3")(config3())
+    //      Wrap("config3_1")(config3_1())
+    //      //Wrap("config4")(config4())
+    //      Wrap("config5")(config5())
+    //      Wrap("config6")(config6())
+    //      Wrap("config7")(config7())
+    //      Wrap("config8")(config8())
+    //      Wrap("config9")(config9())
+    Wrap("logSource")(logSource())
+    Wrap("slf4j")(slf4j)
+    Wrap("mdc")(mdc)
   }
 }
