@@ -1,0 +1,43 @@
+<configuration>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- encoders are assigned the type
+             ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <!--08:49:45.819 [slf4jsystem-akka.actor.default-dispatcher-2] INFO  akka.event.slf4j.Slf4jLogger - Slf4jLogger started-->
+            <!--08:49:45.823 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG akka.event.EventStream - logger log1-Slf4jLogger started-->
+            <!--08:49:45.825 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG akka.event.EventStream - Default Loggers started-->
+            <!--08:49:45.826 [slf4jsystem-akka.actor.default-dispatcher-2] INFO  my.nice.string - hello worold-->
+            <!--08:49:45.831 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG my.nice.string - hello worold-->
+            <!--08:49:45.836 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG my.akka.MyActor - Starting-->
+            <!--08:49:45.837 [slf4jsystem-akka.actor.default-dispatcher-2] INFO  my.akka.MyActor - Received test-->
+            <!--08:49:45.881 [slf4jsystem-akka.actor.default-dispatcher-2] DEBUG akka.event.EventStream - shutting down: StandardOutLogger started-->
+
+            <!--<pattern>%date{ISO8601} %-5level %logger{36} %X{akkaSource} - %msg%n</pattern>-->
+            <!--2017-11-12 08:42:38,294 INFO  akka.event.slf4j.Slf4jLogger  - Slf4jLogger started-->
+            <!--2017-11-12 08:42:38,298 DEBUG akka.event.EventStream EventStream(akka://slf4jsystem) - logger log1-Slf4jLogger started-->
+            <!--2017-11-12 08:42:38,302 DEBUG akka.event.EventStream EventStream(akka://slf4jsystem) - Default Loggers started-->
+            <!--2017-11-12 08:42:38,303 INFO  my.nice.string my.nice.string - hello worold-->
+            <!--2017-11-12 08:42:38,303 DEBUG my.nice.string my.nice.string - hello worold-->
+            <!--2017-11-12 08:42:38,306 DEBUG my.akka.MyActor akka://slf4jsystem/user/actor2 - Starting-->
+            <!--2017-11-12 08:42:38,306 INFO  my.akka.MyActor akka://slf4jsystem/user/actor2 - Received test-->
+            <!--2017-11-12 08:42:38,356 DEBUG akka.event.EventStream EventStream - shutting down: StandardOutLogger started-->
+
+            <!--<pattern>%date{ISO8601} %-5level %logger{36} %X{sourceActorSystem} - %msg%n</pattern>-->
+            <!--2017-11-12 08:42:13,534 INFO  akka.event.slf4j.Slf4jLogger  - Slf4jLogger started-->
+            <!--2017-11-12 08:42:13,538 DEBUG akka.event.EventStream slf4jsystem - logger log1-Slf4jLogger started-->
+            <!--2017-11-12 08:42:13,542 DEBUG akka.event.EventStream slf4jsystem - Default Loggers started-->
+            <!--2017-11-12 08:42:13,542 INFO  my.nice.string slf4jsystem - hello worold-->
+            <!--2017-11-12 08:42:13,542 DEBUG my.nice.string slf4jsystem - hello worold-->
+            <!--2017-11-12 08:42:13,544 DEBUG my.akka.MyActor slf4jsystem - Starting-->
+            <!--2017-11-12 08:42:13,545 INFO  my.akka.MyActor slf4jsystem - Received test-->
+            <!--2017-11-12 08:42:13,593 DEBUG akka.event.EventStream slf4jsystem - shutting down: StandardOutLogger started-->
+
+        </encoder>
+    </appender>
+
+    <root level="debug">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
