@@ -48,7 +48,7 @@ class MyPersistentActor extends PersistentActor {
   var stateString: String = "initial state"
 
   override def persistenceId: String = "json-actor"
-  override def journalPluginId: String = "akka.persistence.journal.auto-json-store"
+  //override def journalPluginId: String = "akka.persistence.journal.auto-json-store"
 
   override def receiveRecover: Receive = {
     case RecoveryCompleted ⇒
@@ -90,22 +90,30 @@ object PersistenceSample {
   def main(args: Array[String]): Unit = {
 
     val config = ConfigFactory.parseString("""
-      |akka.persistence.snapshot-store.plugin = "akka.persistence.snapshot-store.local"
-      |akka.persistence.journal {
-      |  auto-json-store {
-      |    class = "akka.persistence.journal.inmem.InmemJournal" # reuse inmem, as an example
-      |    event-adapters {
-      |      identical-adapter = "my.akka.persistence.MyIdenticalEventAdapter"
-      |      tagging-adapter = "my.akka.persistence.MyTaggingEventAdapter"
+      |akka {
+      |  actor.warn-about-java-serializer-usage = off
+      |  persistence {
+      |    journal {
+      |      leveldb {
+      |        native = off
+      |        event-adapters {
+      |          identical-adapter = "my.akka.persistence.MyIdenticalEventAdapter"
+      |          tagging-adapter = "my.akka.persistence.MyTaggingEventAdapter"
+      |        }
+      |        event-adapter-bindings {
+      |           "my.akka.persistence.Evt" = identical-adapter
+      |           "my.akka.persistence.EvtToTag" = tagging-adapter
+      |        }
+      |      }
+      |      plugin = "akka.persistence.journal.leveldb"
+      |      auto-start-journals = ["akka.persistence.journal.leveldb"]
       |    }
-      |
-      |    event-adapter-bindings {
-      |      "my.akka.persistence.Evt" = identical-adapter
-      |      "my.akka.persistence.EvtToTag" = tagging-adapter
+      |    snapshot-store {
+      |      plugin = "akka.persistence.snapshot-store.local"
+      |      auto-start-snapshot-stores = ["akka.persistence.snapshot-store.local"]
       |    }
       |  }
-      |}
-    """.stripMargin
+      |}""".stripMargin
     )
 
     val system = ActorSystem("aaaaa", config)
@@ -117,8 +125,8 @@ object PersistenceSample {
 
       val p1 = system.actorOf(props, "p1")
 
-      p1 ! Cmd("abc")
-      p1 ! Cmd("def")
+//      p1 ! Cmd("abc")
+//      p1 ! Cmd("def")
       p1 ! CmdToTag("123456789")
       p1 ! CmdToTag("098765432")
       p1 ! "kaboom"
